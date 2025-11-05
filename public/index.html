@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Электронный дневник — онлайн</title>
+<style>
+  body { font-family: Arial, sans-serif; margin: 20px; background-color: #fafafa; }
+  h1 { margin-bottom: 10px }
+  .top { margin-bottom: 12px }
+  button { padding: 8px 12px; margin-right:8px; border-radius: 6px; border:1px solid #888; background:#f1f1f1; cursor:pointer }
+  .tabs { display:flex; flex-wrap:wrap; border-bottom:2px solid #ccc; margin-bottom:10px }
+  .tab { padding:8px 12px; cursor:pointer; border:1px solid #ccc; border-bottom:none; background:#f1f1f1; margin-right:4px; border-radius:6px 6px 0 0 }
+  .tab.active { background:white; font-weight:bold }
+  .tabContent { display:none }
+  .tabContent.active { display:block }
+  table { border-collapse:collapse; width:100%; background:white }
+  th,td { border:1px solid #ccc; padding:6px; min-width:50px; text-align:center }
+  input[type=number]{ width:50px }
+</style>
+</head>
+<body>
+  <h1>📘 Электронный дневник (онлайн)</h1>
+  <div class="top">
+    <button onclick="showLogin()">Войти как учитель</button>
+    <button id="saveBtn" onclick="saveAll()">💾 Сохранить на сервер</button>
+    <button onclick="loadAll()">🔄 Обновить с сервера</button>
+  </div>
+
+  <div class="tabs" id="tabsContainer"></div>
+
+  <div id="contentContainer"></div>
+
+<script>
+const subjects = [
+  {id:'bilelit', label:'Бел.лит'},
+  {id:'belyaz', label:'Бел.яз'},
+  {id:'russlit', label:'Русск.лит'},
+  {id:'russya', label:'Русск.яз'},
+  {id:'matem', label:'Матем'},
+  {id:'fizika', label:'Физика'},
+  {id:'biologiya', label:'Биология'},
+  {id:'belist', label:'Бел.ист'},
+  {id:'vsemist', label:'Всем.ист'},
+  {id:'franc', label:'Франц.яз'},
+  {id:'inform', label:'Информ'},
+  {id:'trud', label:'Труд'}
+];
+const totalRows = 29;
+const totalCols = 60;
+let teacherMode = false;
+let gradesData = { subjects: {} };
+
+// Динамически создаём вкладки и содержимое
+const tabsContainer = document.getElementById('tabsContainer');
+const contentContainer = document.getElementById('contentContainer');
+
+subjects.forEach((s, idx) => {
+  const tab = document.createElement('div');
+  tab.className = 'tab' + (idx === 0 ? ' active' : '');
+  tab.textContent = s.label;
+  tab.onclick = (e) => openTab(e, s.id);
+  tabsContainer.appendChild(tab);
+
+  const content = document.createElement('div');
+  content.id = s.id;
+  content.className = 'tabContent' + (idx === 0 ? ' active' : '');
+  const h = document.createElement('h2');
+  h.textContent = s.label;
+  content.appendChild(h);
+  const wrap = document.createElement('div');
+  wrap.style.overflowX = 'auto';
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  const thNum = document.createElement('th'); thNum.textContent = '№'; headerRow.appendChild(thNum);
+  for (let i=2;i<=totalCols;i++){ const th=document.createElement('th'); headerRow.appendChild(th); }
+  thead.appendChild(headerRow); table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  for (let r=1;r<=totalRows;r++){
+    const tr = document.createElement('tr');
+    const tdNum = document.createElement('td'); tdNum.textContent = r; tr.appendChild(tdNum);
+    for (let c=2;c<=totalCols;c++){
+      const td=document.createElement('td');
+      const input=document.createElement('input'); input.type='number'; input.min='1'; input.max='5';
+      input.id=`${s.id}_grade_${r}_${c}`; input.disabled=true;
+      td.appendChild(input); tr.appendChild(td);
+    }
+    tbody.appendChild(tr);
+  }
+  table.appendChild(tbody); wrap.appendChild(table); content.appendChild(wrap);
+  contentContainer.appendChild(content);
+});
+
+function openTab(evt, id){
+  document.querySelectorAll('.tabContent').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(el=>el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  evt.currentTarget.classList.add('active');
+}
+
+function showLogin(){
+  const pwd = prompt('Введите пароль учителя:');
+  if(pwd === '1324576800'){
+    teacherMode = true; document.querySelectorAll('input').forEach(i=>i.disabled=false);
+    alert('Вы вошли как учитель');
+  } else alert('Неверный пароль');
+}
+
+async function loadAll(){
+  try{
+    const res = await fetch('/api/grades');
+    if(!res.ok) throw new Error('Ошибка '+res.status);
+    gradesData = await res.json();
+    // заполним таблицы
+    for(const s of subjects){
+      const subjArr = gradesData.subjects[s.id] || [];
+      for(let r=1;r<=totalRows;r++){
+        for(let c=2;c<=totalCols;c++){
+          const input = document.getElementById(`${s.id}_grade_${r}_${c}`);
+          if(!input) continue;
+          input.value = subjArr[r-1]?.[c-2] ?? '';
+        }
+      }
+    }
+    alert('Данные загружены с сервера');
+  }catch(err){console.error(err); alert('Ошибка загрузки данных: '+err.message)}
+}
+
+async function saveAll(){
+  if(!teacherMode) return alert('Только учитель может сохранять');
+  // Соберём данные
+  const record = { subjects: {} };
+  for(const s of subjects){
+    record.subjects[s.id] = [];
+    for(let r=1;r<=totalRows;r++){
+      const row = [];
+      for(let c=2;c<=totalCols;c++){
+        const input = document.getElementById(`${s.id}_grade_${r}_${c}`);
+        row.push(input ? (input.value || '') : '');
+      }
+      record.subjects[s.id].push(row);
+    }
+  }
+  try{
+    const pwd = prompt('Повторите пароль учителя для сохранения:');
+    const res = await fetch('/api/grades',{
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd, record })
+    });
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || 'Ошибка сервера');
+    alert('Оценки успешно сохранены на сервере');
+  }catch(err){console.error(err); alert('Ошибка сохранения: '+err.message)}
+}
+
+// Загрузим автоматически при старте
+loadAll();
+</script>
+</body>
+</html>
