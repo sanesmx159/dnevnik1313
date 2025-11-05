@@ -78,7 +78,7 @@ app.get('*', (req, res) => {
 
 (async () => {
   await ensureDataFile();
-  app.listen(PORT, () => {
+  app.listen(3000, () => {
     console.log(`Server listening on port ${PORT}`);
   });
 })();
